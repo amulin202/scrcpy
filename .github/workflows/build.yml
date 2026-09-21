@@ -67,7 +67,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" release/output/* \
-            --title "scrdock $GITHUB_REF_NAME (scrcpy ${{ steps.ver.outputs.v }})" \
+            --title "scrcpy ${{ steps.ver.outputs.v }} + scrdock 补丁" \
             --notes "基于 upstream scrcpy ${{ steps.ver.outputs.v }} + scrdock-mods 补丁:
           - MOD+e 直开设置面板（不先弹通知栏）
           - 版本横幅打印 'scrdock-mods' 标记（供 scrdock 工具栏检测）
