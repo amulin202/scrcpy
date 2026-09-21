@@ -35,6 +35,7 @@ main_scrcpy(int argc, char *argv[]) {
 
     printf("scrcpy " SCRCPY_VERSION
            " <https://github.com/Genymobile/scrcpy>\n");
+    printf("scrdock-mods\n");
 
     struct scrcpy_cli_args args = {
         .opts = scrcpy_options_default,
