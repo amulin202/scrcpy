@@ -15,7 +15,7 @@ jobs:
       - name: Install cross-compile toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install -y mingw-w64 mingw-w64-tools libz-mingw-w64-dev zip unzip meson ninja-build
+          sudo apt-get install -y mingw-w64 mingw-w64-tools libz-mingw-w64-dev nasm zip unzip meson ninja-build
 
       # Uses the repo's own dependency scripts (app/deps/*.sh) to build
       # SDL3, FFmpeg, dav1d, libusb and fetch adb from source, then
