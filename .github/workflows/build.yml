@@ -1,0 +1,56 @@
+name: build
+
+on:
+  push:
+    branches: [scrdock-mods]
+    tags: ['scrdock-*']
+  workflow_dispatch:
+
+jobs:
+  win64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install cross-compile toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mingw-w64 mingw-w64-tools libz-mingw-w64-dev zip unzip meson ninja-build
+
+      # Uses the repo's own dependency scripts (app/deps/*.sh) to build
+      # SDL3, FFmpeg, dav1d, libusb and fetch adb from source, then
+      # cross-compiles the client only (-Dcompile_server=false).
+      - name: Build client (win64)
+        run: bash release/build_windows.sh 64
+
+      # The scrdock-mods patch only touches the client; the server is
+      # identical to upstream v4.1, so reuse the official artifact instead
+      # of setting up an Android toolchain. SCRCPY_VERSION must match.
+      - name: Fetch matching official server
+        run: |
+          mkdir -p release/work/build-server/server
+          curl -fL -o release/work/build-server/server/scrcpy-server \
+            https://github.com/Genymobile/scrcpy/releases/download/v4.1/scrcpy-server-v4.1
+
+      - name: Package
+        run: |
+          cd release
+          VERSION="scrdock-${GITHUB_SHA:0:7}" ./package_client.sh win64 zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: scrdock-win64
+          path: release/output/*
+
+      - name: Create GitHub release (tag builds)
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" release/output/* \
+            --title "scrdock $GITHUB_REF_NAME" \
+            --notes "scrcpy 4.1 + scrdock-mods:
+          - MOD+e expands the settings panel directly (no notification panel first)
+          - version banner prints a 'scrdock-mods' marker (companion-tool detection)
+
+          Server jar is the official scrcpy-server v4.1 (the patch does not touch server code)."
