@@ -3,14 +3,29 @@ name: build
 on:
   push:
     branches: [scrdock-mods]
+    # Tag convention: scrdock-v<upstream>-<patch>, e.g. scrdock-v4.1-1
+    # (release #1 based on upstream scrcpy v4.1).
     tags: ['scrdock-*']
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   win64:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      # Derive the base scrcpy version from meson.build so the server jar,
+      # package name and release notes always match the synced source.
+      - name: Detect scrcpy base version
+        id: ver
+        run: |
+          v="$(sed -n "s/^[[:space:]]*version: '\([^']*\)'.*/\1/p" meson.build | head -n1)"
+          test -n "$v"
+          echo "base version: $v"
+          echo "v=$v" >> "$GITHUB_OUTPUT"
 
       - name: Install cross-compile toolchain
         run: |
@@ -24,18 +39,22 @@ jobs:
         run: bash release/build_windows.sh 64
 
       # The scrdock-mods patch only touches the client; the server is
-      # identical to upstream v4.1, so reuse the official artifact instead
-      # of setting up an Android toolchain. SCRCPY_VERSION must match.
+      # identical to upstream, so reuse the official artifact instead of
+      # setting up an Android toolchain. The URL is derived from the
+      # detected version: if upstream master moved to an unreleased
+      # version (no official server jar yet), this fails loudly instead
+      # of shipping a mismatched server.
       - name: Fetch matching official server
         run: |
+          V="${{ steps.ver.outputs.v }}"
           mkdir -p release/work/build-server/server
           curl -fL -o release/work/build-server/server/scrcpy-server \
-            https://github.com/Genymobile/scrcpy/releases/download/v4.1/scrcpy-server-v4.1
+            "https://github.com/Genymobile/scrcpy/releases/download/v${V}/scrcpy-server-v${V}"
 
       - name: Package
         run: |
           cd release
-          VERSION="scrdock-${GITHUB_SHA:0:7}" ./package_client.sh win64 zip
+          VERSION="scrdock-${{ steps.ver.outputs.v }}-${GITHUB_SHA:0:7}" ./package_client.sh win64 zip
 
       - uses: actions/upload-artifact@v4
         with:
@@ -48,9 +67,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" release/output/* \
-            --title "scrdock $GITHUB_REF_NAME" \
-            --notes "scrcpy 4.1 + scrdock-mods:
-          - MOD+e expands the settings panel directly (no notification panel first)
-          - version banner prints a 'scrdock-mods' marker (companion-tool detection)
+            --title "scrdock $GITHUB_REF_NAME (scrcpy ${{ steps.ver.outputs.v }})" \
+            --notes "基于 upstream scrcpy ${{ steps.ver.outputs.v }} + scrdock-mods 补丁:
+          - MOD+e 直开设置面板（不先弹通知栏）
+          - 版本横幅打印 'scrdock-mods' 标记（供 scrdock 工具栏检测）
 
-          Server jar is the official scrcpy-server v4.1 (the patch does not touch server code)."
+          Server 为官方 scrcpy-server v${{ steps.ver.outputs.v }}（补丁不涉及 server 代码）。"
