@@ -38,18 +38,21 @@ jobs:
       - name: Build client (win64)
         run: bash release/build_windows.sh 64
 
-      # The scrdock-mods patch only touches the client; the server is
-      # identical to upstream, so reuse the official artifact instead of
-      # setting up an Android toolchain. The URL is derived from the
-      # detected version: if upstream master moved to an unreleased
-      # version (no official server jar yet), this fails loudly instead
-      # of shipping a mismatched server.
-      - name: Fetch matching official server
-        run: |
-          V="${{ steps.ver.outputs.v }}"
-          mkdir -p release/work/build-server/server
-          curl -fL -o release/work/build-server/server/scrcpy-server \
-            "https://github.com/Genymobile/scrcpy/releases/download/v${V}/scrcpy-server-v${V}"
+      # The scrdock-mods patch also touches the server (Device.rotateDevice
+      # rotation-lock fix), so build it from this tree instead of downloading
+      # the official jar. Same recipe as upstream release.yml (JDK 17 + native
+      # gradle; the Android SDK from the runner image). build_server.sh drops
+      # the jar exactly where package_client.sh expects it.
+      - name: Setup JDK (for the Android server build)
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Build server
+        env:
+          GRADLE: gradle  # use native gradle instead of ./gradlew in scripts
+        run: release/build_server.sh
 
       - name: Package
         run: |
@@ -71,5 +74,6 @@ jobs:
             --notes "基于 upstream scrcpy ${{ steps.ver.outputs.v }} + scrdock-mods 补丁:
           - MOD+e 直开设置面板（不先弹通知栏）
           - 版本横幅打印 'scrdock-mods' 标记（供 scrdock 工具栏检测）
+          - 旋转快捷键不再误解除手机的方向锁定（MOD+r 前后保持用户的自动旋转开关状态）
 
-          Server 为官方 scrcpy-server v${{ steps.ver.outputs.v }}（补丁不涉及 server 代码）。"
+          Server 由本仓库自行构建（包含 server 端补丁）。"
